@@ -1,0 +1,356 @@
+---
+title: "Important Factors that Affect our Feelings about Life"
+author: "Yuchen Cong, Jingwen Deng, Ruoxi Guan, Yuwei Sun"
+date: "Oct. 19, 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(jtools)
+library(kableExtra)
+```
+
+
+## Abstract
+
+We measure our feelings of life very subjectively; there are so many real-life factors, such as income, education, job and personal health, which could affect us. We evaluate how we feel about our life and consider it as to whether we are satisfied with our current lives. This report analyzes factors that could influence feelings of life score from respondents of the Canadian General Social Survey Dataset. During the analysis, we produce tables of data summary and graphs between related variables. A Multiple Linear Regression model is introduced with significant factors that could affect feelings of life scores. We find out the factor of income level, health level, mental health level, and marital status are likely related to the feelings of life score. 
+
+
+## Introduction
+
+In this report, our goal is to discover important factors that could affect the feelings of life scores collected by the Canadian General Social Survey Dataset. We deeply look into this dataset and find some interesting variables that could relate to our analysis object. After performing tables and figures among different variables, we filter out those who have less effect. Then we decide to explore more with the variables that contribute significantly to the feelings of life score. Since there are multiple variables chosen, we set up a Multiple Linear Regression model to see if the selected variables give a good prediction to our objective. Through our analysis throughout this report, we expect to find out the important factors that improve people's feelings of life to help those who are disappointed in their lives and give a hint to them about how they could have a better feeling of life.
+
+## Data
+```{r}
+gss <- read.csv("/Users/macbookair/Desktop/STA304/PS2/gss.csv")
+```
+
+* The 2017 Canada General Social Survey dataset is used throughout this project. This dataset was conducted from February 2nd to November 30th, 2017, a sample survey with sectional design. The **target population** for the 2017 GSS included 15 years of age and older in Canada, excluding the full-time institution residents and residents of the Yukon, Northwest Territories and Nunavut. The target sample size for 2017 was 20000, but there are 20602 respondents. The dataset was collected via **computer-assisted telephone interviews**. Those who refused to participate were re-contacted to explain the significance of the survey. The total response rate was 52.4%.
+
+
+* **Stratified random sampling** was used in the 2017 GSS so that each of the ten provinces was divided into strata. The population is first sliced into homogeneous groups before the sample is selected. Then, a simple random sampling without replacement of records was performed next in each stratum. The **survey frame** consists of a list of telephone numbers in use and the Address Register (AR). Non-response was not permitted for questions required for weighting, so the 2017 GSS used a “three-stage non-response adjustment” (Appendix#1) to drop the non-responding telephone numbers. 
+
+
+* **Strengths and Weaknesses**: 
+In order to reduce non-sampling errors in the survey and monitor the quality of the data, quality assurance measures were introduced at each step of the data collection and processing cycle. A telephone survey is a more direct approach resulting in a good response rate. Also, it can ensure a proper understanding of respondents by clarifying questions on the phone. However, there are some limitations to the data. For example, some respondents did not have the patience or time to complete such a long survey on the phone, so that some responses were not completed. Also, not all respondents were willing to talk about their living conditions to a stranger on the phone, so they may choose to lie, affecting the responses' accuracy. Telephone surveys are very time consuming to administer and can be expensive when aiming for large samples. Furthermore, this kind of survey requires the survey administrator to be highly skilled to avoid bias. 
+
+
+```{r}
+# Data Cleaning Process
+gss_new <- gss %>% 
+  mutate(new_marital_status = 
+           ifelse(marital_status == "Married", "Married", 
+           ifelse(marital_status == "Single, never married" | 
+                  marital_status == "Divorced" | 
+                  marital_status == "Widowed", "Single", "Other"))) %>% 
+  mutate(new_income_respondent =
+           ifelse(income_respondent == "Less than $25,000", 
+                  "Less than $25,000", 
+           ifelse(income_respondent == "$25,000 to $49,999" | 
+                  income_respondent == "$50,000 to $74,999", 
+                  "$25,000 to $74,999", "$75,000 and more"))) %>% 
+  filter(education != "NA") %>% 
+  mutate(new_education = 
+          ifelse(education == "Bachelor's degree (e.g. B.A., B.Sc., LL.B.)"|
+  education == "University certificate or diploma below the bachelor's level"|
+  education == "University certificate, diploma or degree above the bach..."| 
+  education == "College, CEGEP or other non-university certificate or di...", 
+          "High", "Low")) %>%
+  filter(self_rated_health != "NA" & 
+           self_rated_health != "Don't know") %>% 
+  filter(self_rated_mental_health != "NA" & 
+           self_rated_mental_health != "Don't know") %>% 
+  select(age, sex, region, feelings_life, total_children, 
+         education = new_education, 
+         income_respondent = new_income_respondent, 
+         marital_status = new_marital_status, 
+         self_rated_health, 
+         self_rated_mental_health) %>% 
+  na.omit() 
+
+gss_new_summ <- head(gss_new)
+```
+
+
+* **Data Cleaning Process**:
+We choose the data which will affect the feelings of life score by two conditions. Firstly, the chosen variables from the dataset can not contain too many NA terms since the NA terms will influence the test's accuracy. After that, we will choose the variables to depend on life common sense. After our discussion, we pick the age, sex, region, total children, education level, levels of income of respondent, marital status, self-rated health level, self-rated mental health level as our variables. They all directly or indirectly reflect on the quality of people's life or their life pressure. As we all know, whether a person can harvest happiness, whatever from spiritual or material terms, determines their feelings of life scores. Then, we redivided the ‘marital_status’ variable into three categories: "Married", "Single" and "Other", and also categorized 'income_respondent' into "Less than $25,000", "$25,000 to $74,999", and "$75,000 and more". Besides, observations that are blank or contain words like "NA" and "Don't know" are not selected.
+
+## Model
+### Model Equation
+\begin{align}
+Y_i &= \beta_0+ 
+\beta_1 \cdot X_{Income,\ 75,000\ and\ more} +
+\beta_2 \cdot X_{Income,\ Less \ than\ 25,000} \notag\\ &+ 
+\beta_3 \cdot X_{Marital\_Status,\ Other} + 
+\beta_4 \cdot X_{Marital\_Status,\ Single} \notag \\&+ 
+\beta_5 \cdot X_{Sex,\ Male} + 
+\beta_6 \cdot X_{Health,\ Fair} \notag \\&+ 
+\beta_7 \cdot X_{Health,\ Good} + 
+\beta_8 \cdot X_{Health,\ Very\ Good} \notag \\&+ 
+\beta_9 \cdot X_{Health,\ Excellent} + 
+\beta_{10} \cdot X_{Mental\_Health,\ Fair} \notag \\&+ 
+\beta_{11} \cdot X_{Mental\_Health,\ Good} +
+\beta_{12} \cdot X_{Mental\_Health,\ Very\ Good} \notag \\&+ 
+\beta_{13} \cdot X_{Mental\_Health,\ Excellent} + 
+\beta_{14} \cdot X_{Num\_Child} +
+\epsilon_i \notag
+\end{align}
+
+The “feelings_life” variable is chosen to be our response variable here, and it is a numerical variable with scaling from 0 to 10. A larger number represents a better feeling of life.  A multiple linear regression (MLR) model is generated to investigate how our predictors influence people’s feelings of life. In our MLR model, “income_respondent”, “marital_status”, “sex”, “self_rated_health”, “self_rated_mental_health”, and “total_children” are chosen as predictors to predict the feelings of life score. Since “income_respondent”, “marital_status”, “sex”, “self_rated_health”, and “self_rated_mental_health” are categorical variables, we use them as a factor so that we have serval dummy variables corresponding to each categorical predictor. 
+
+```{r}
+# change variable names
+gss_2 <- gss_new %>% select(Age = age, Sex = sex, 
+                            Feelings_Life = feelings_life, 
+                            Num_Child = total_children, 
+                            Income = income_respondent, 
+                            Marital = marital_status, 
+                            Health = self_rated_health, 
+                            Mental_Health = self_rated_mental_health)
+
+# Multiple Linear Regression Model (model1)
+model <- lm(Feelings_Life ~ as.factor(Income) + 
+              as.factor(Marital) + 
+              as.factor(Sex) + 
+              as.factor(Health) + 
+              as.factor(Mental_Health) + 
+              Num_Child, data = gss_2)
+
+# summary(model)
+```
+
+```{r, include=FALSE}
+# Model Assumption Check 
+plot(model)
+```
+
+
+\newpage
+## Results
+### Tables
+
+- Table 1 gives the first few observations of our dataset after the cleaning process. It clearly shows the variables we chose that could affect respondents' feelings of life score, which is what we are interested in.
+
+```{r}
+# Table 1: Data Visualization after Cleaning Process
+# Changing the column names of "gss_new_summ"
+colnames(gss_new_summ)[1] <- "Age"
+colnames(gss_new_summ)[2] <- "Sex"
+colnames(gss_new_summ)[3] <- "Region"
+colnames(gss_new_summ)[4] <- "Feelings of Life Score"
+colnames(gss_new_summ)[5] <- "Total Children"
+colnames(gss_new_summ)[6] <- "Education Level"
+colnames(gss_new_summ)[7] <- "Levels of Income of Respondant"
+colnames(gss_new_summ)[8] <- "Marital Status"
+colnames(gss_new_summ)[9] <- "Self Rated Health Level"
+colnames(gss_new_summ)[10] <- "Self Rated Mental Health Level"
+
+# Using "kable" function to generate the table of "Data Visualization after Cleaning Process"
+kable(gss_new_summ, caption = "Data Visualization after Cleaning Process", 
+      format = "markdown", align = "cccccccccc", padding= 3) 
+```
+
+- Table 2 is a summary table of different income levels, including each level's proportion among all data and averages of feelings of life score, age and number of children respondents have. 
+
+```{r}
+# Table 2: Summary of Different Levels of Income 
+gss_1 <- gss %>% 
+  select(age, feelings_life, total_children, income_respondent) %>% 
+  na.omit() 
+
+# Changing the order of variable income_respondent
+gss_1$income_respondent <- factor(gss_1$income_respondent, 
+                                levels=c("Less than $25,000", 
+                                         "$25,000 to $49,999", 
+                                         "$50,000 to $74,999", 
+                                         "$75,000 to $99,999", 
+                                         "$100,000 to $ 124,999", 
+                                         "$125,000 and more"))
+
+sum_table <- gss_1 %>% 
+  group_by(income_respondent) %>% 
+  summarise(prop = n()/nrow(gss_1), 
+            avg_feelings_life = mean(feelings_life), 
+            avg_age = mean(age), 
+            avg_total_children = mean(total_children), .groups = 'drop')
+
+# Changing the column names of the summary table
+colnames(sum_table)[1] <- "Levels of Income of Respondant"
+colnames(sum_table)[2] <- "Proportion of Different Levels of Income "
+colnames(sum_table)[3] <- "Feelings of Life Score"
+colnames(sum_table)[4] <- "Average Age"
+colnames(sum_table)[5] <- "Average Total Children"
+
+# Using "kable" function to generate the summary table ("Summary of Different Levels of Income")
+kable(sum_table, caption = "Summary of Different Levels of Income", 
+      digits = 3, format = "markdown", align = "cccc", padding= 3) 
+```
+
+
+\newpage
+
+### Figures
+
+- Figure 1 shows the relationship between the respondent's feelings of life score with different income levels. However, except for those who earn $125,000 and more, respondents in other income levels have very small differences in median and Q3, the 75th percentile of the boxplot. 
+
+
+```{r, fig.cap = "Feelings of Life Score VS. Income of Respondent", fig.height = 3, fig.width = 6}
+# Feelings of Life Score VS. Income of Respondent
+gss$income_respondent <- factor(gss$income_respondent, 
+                                levels=c("Less than $25,000", 
+                                         "$25,000 to $49,999", 
+                                         "$50,000 to $74,999", 
+                                         "$75,000 to $99,999", 
+                                         "$100,000 to $ 124,999", 
+                                         "$125,000 and more")) 
+
+gss %>% ggplot(aes(gss$income_respondent, x = income_respondent, 
+                   y = feelings_life, fill = income_respondent)) + 
+  labs(title = "The Relationship of Income Levels and Feelings of Life Score", 
+       caption = "From Canadian General Social Survey Dataset", 
+       x = "Income Levels", 
+       y = "Feelings of Life Score (0-10)",
+       fill = "Income Level") + 
+  geom_boxplot() + 
+  coord_flip() + theme(plot.title = element_text(hjust = 0.5)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+               plot.caption = element_text(color = "blue", face = "italic"))
+```
+
+- Figure 2 gives us the relationship between the feelings of life score and respondents' self-rated health level. The boxplots form the shape of a ladder. The median score of respondents who have an "Excellent" health level is greater than or equal to the third quartile of "Good" and "Very good" health levels. Even though many respondents with "Poor" health levels have lower feelings of life scores, the median of these scores is almost 6 out of 10.
+
+
+```{r,  fig.cap = "Feelings of Life Score VS. Self-Rated Health Levels", fig.height = 3, fig.width = 6}
+# Feelings of Life Score VS. Self-Rated Health Levels 
+gss_new$self_rated_health <- factor(gss_new$self_rated_health, 
+                                    levels=c("Poor", "Fair", "Good", 
+                                             "Very good", "Excellent"))
+
+gss_new %>% ggplot(aes(x = self_rated_health, y = feelings_life, 
+                             fill = self_rated_health)) + 
+  labs(title = "The Relationship of Self-Rated Health Levels and Feelings 
+       of Life Score", 
+       caption = "From Canada General Social Survey Dataset", 
+       x = "Self Rated Health Levels", 
+       y = "Feelings of Life Score (0-10)",
+       fill = "Health Level") + 
+  geom_boxplot() + 
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+               plot.caption = element_text(color = "blue", face = "italic"))
+```
+
+\newpage
+- Figure 3 is a graph of feelings of life score related to respondents' self-rated mental health levels. It has a more obvious ladder shape, which is similar to Figure 2. We notice that the third quantile of respondents with "Poor" mental health levels is much lower than respondents with "Poor" health level. Also, the median drops to nearly 5 out of 10.
+
+```{r, fig.cap = "Feelings of Life Score VS. Self-Rated Mental Health Levels", fig.height = 3, fig.width = 6}
+# Feelings of Life Score VS. Self-Rated Mental Health Levels 
+gss_new$self_rated_mental_health <- factor(gss_new$self_rated_mental_health, 
+                                           levels=c("Poor", "Fair", "Good", 
+                                                    "Very good", "Excellent"))
+
+gss_new %>% ggplot(aes(x = self_rated_mental_health, y = feelings_life, 
+                             fill = self_rated_mental_health)) + 
+  labs(title = "The Relationship of Self-Rated Mental Health Levels 
+       and Feelings of Life Score", 
+       caption = "From Canada General Social Survey Dataset", 
+       x = "Self Rated Mental Health Levels", 
+       y = "Feelings of Life Score (0-10)",
+       fill = "Mental Health Level") + 
+  geom_boxplot() + 
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+               plot.caption = element_text(color = "blue", face = "italic")) 
+```
+
+
+### Model
+- Fitted Model Equation
+\begin{align}
+\hat{Y_i} &= 4.314614+ 
+0.023244 \cdot X_{Income,\ 75,000\ and\ more} +
+0.029977 \cdot X_{Income,\ Less \ than\ 25,000} \notag\\ &- 
+0.311006 \cdot X_{Marital\_Status,\ Other} - 
+0.450532 \cdot X_{Marital\_Status,\ Single} \notag \\&- 
+0.113203 \cdot X_{Sex,\ Male} + 
+0.815864 \cdot X_{Health,\ Fair} \notag \\&+ 
+1.163934 \cdot X_{Health,\ Good}+ 
+1.373821 \cdot X_{Health,\ Very\ Good} \notag \\&+ 
+1.563505 \cdot X_{Health,\ Excellent} + 
+1.279750 \cdot X_{Mental\_Health,\ Fair} \notag \\&+ 
+2.322968 \cdot X_{Mental\_Health,\ Good} +
+2.821931 \cdot X_{Mental\_Health,\ Very\ Good} \notag \\&+ 
+3.273919 \cdot X_{Mental\_Health,\ Excellent} + 
+0.075379 \cdot X_{Num\_Child} \notag 
+\end{align}
+
+- Summary Table
+```{r}
+# Summary Table of Multiple Linear Regression Model ("model")
+summ(model)
+```
+
+## Discussion
+### Table and Figure
+- From Table 2, we can see that most respondents earn less than $25,000, and this portion of people has the lowest average of feelings of life score. We also find that as the level of income goes in increasing order, the average of feelings of life score rises as well. However, the averages of respondents' age and the number of children respondents do not significantly differ in different income levels.
+
+- Figure 1 clearly shows that the more the respondent earns, the higher feelings of life score the respondent would have.  Even though each income level's average feelings of life score seems pretty high and equal, a large portion of people in the lower-income range level has the feelings of life score less than the average score.
+
+- From Figure 2, we can easily tell that respondents with good health tend to have higher feelings of life scores. Figure 3 is very similar to Figure 2 but with more significant differences. In Figure 2, the 75th percentile of "Poor" and "Fair" health levels are about the same. However, in Figure 3, the Q3 of the "Poor" health level is much smaller than the Q3 of the "Fair" health level. And the difference between the medians of these two levels almost double. This implies that mental health influences more on our feelings of life. Indeed, the higher the mental health level, the greater the feelings of life score would be.
+
+### Model
+- After generating our model, we first check our model assumptions. From our plot graph(Residual vs Fitted, Normal Q-Q, Scale-Location, Residuals vs Leverage), we see that there exist a few extreme observations. Still, the MLR model assumptions are reasonably satisfied in general. 
+
+- Summarizing the model, we find out that it is significant at an overall level, and all covariates are significant except the income predictor. We discover that the self-rated mental health level and self-rated health level have a substantial impact on the feelings of life score since health is an important factor affecting the quality of life.  If people's self-rated mental health level is excellent and other factors remain constant, their feelings of life score will increase 3.27 and very good mental health level increases 2.82; good mental health level increases 2.32. However, a fair mental health level only increases 1.28, and a poor mental health level increases 0. Moreover, based on our model, we surprisingly discovered that the number of children of a person also affects a person's feelings of life; one more child will increase a person's feelings of life score by 0.075. It is also shown that on average, a male's feelings of life score will be 0.11 lower than a female's feelings of life score. This phenomenon may be due to the stress and expectation that are given to them by modern society. Marital status will also influence one's feelings of life. Married people tend to have higher feelings of life score. The adjusted R-squared (0.2883) of our MLR model means that our model has explained approximately 30% of our response variable's variation, the feelings life score. 
+
+### Weaknesses
+
+- **Questionnaire Weaknesses**:
+For the questionnaire, we have noticed that all the questions are very simple, only ask one thing at a time, which is good. However, some questions do not have a balance across the response options. For example, the variable "self_rated_health", has six response options: "Don't Know", "Poor", "Fair", "Good", "Very good" and "Excellent". The problem is that three of the responses are positive, with only one option for a negative response. Also, Excellent and Very Good have a similar meaning, so respondents may not easily distinguish between. A better one can be "Don't Know", "Very poor", "Poor", "Fair", "Good", and "Very good".
+
+
+- **Dataset Weaknesses**:
+Because participants are motivated to answer survey questions, response bias reinforces the characteristics and behaviours preferred by the entire society while rejecting undesirable characteristics and behaviours. For instance, sometimes, people are more likely to overestimate their mental health levels. Some people may also choose a higher income range out of self-esteem, while others may tend to select a lower income range for privacy or other reasons.
+
+
+- **Model Weaknesses**:
+Since some variables are chosen based on our intuition, they may not be good at fitting our MLR model, leading to the prediction's inaccuracy. Moreover, most of the selected variables are categorical variables, so the model's fitness will be affected when we treat them as numeric variables. Also, some further cleaning processes, such as recategorizing variables and removing "N/A" observations, may also affect the result. Some relationships are not being captured. Besides plotting the residual plots, we can notice some residual plot patterns, so there are some violations of the assumption. This may be due to the wrong variable or model selections and the dependence of variables. 
+
+
+### Next Steps
+
+- We can do some improvements to our model. For example, the transformation process of variables can be applied before fitting a model so that our model assumption would be more satisfied. Using another statistical method to fit another model or add other significant variables as predictors can also be considered.
+
+- From the news, we can notice an increasing number of people who committed suicide due to depression. After finishing this project, we can identify those people who have low feelings of life score or are likely to have worse outcomes so that some people can be targeted for interventions to improve these outcomes and reduce the costs of themselves/government.
+
+- We analyzed a few variables using MLR to see how they affect the feelings of life score; we could continue looking into each variable and our objective. Finding out what factor is the most influential one, then we should explore more on that variable.
+
+
+\newpage
+## References
+- Cite R : R Core Team (2019). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/.
+
+- Cite “dplyr” :   Hadley Wickham, Romain François, Lionel Henry and Kirill Müller (2020). dplyr: A Grammar of Data Manipulation. R package version 1.0.2. https://CRAN.R-project.org/package=dplyr
+
+- Cite “ggplot2” : H. Wickham. ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York, 2016.
+Cite “knitr” : Yihui Xie (2020). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.27.
+
+- Cite “jtools” : Long JA (2020). _jtools: Analysis and Presentation of Social Scientific Data_. R package version 2.1.0, <URL: https://cran.r-project.org/package=jtools>.
+
+- Cite “kableExtra” : Hao Zhu (2020). kableExtra: Construct Complex Table with 'kable' and Pipe Syntax. R package version 1.2.1. https://CRAN.R-project.org/package=kableExtra
+
+- “Developing and Implementing Surveys.” Developing and Implementing Surveys, artsengage.initiatives.qld.gov.au/images/documents/artsqld/Arts%20Acumen/Developing-and-implementing-surveys-fact-sheet.PDF. 
+
+- Life Satisfaction. (n.d.). Retrieved October 19, 2020, from http://www.oecdbetterlifeindex.org/topics/life-satisfaction/
+
+- “Public Use Microdata File Documentation and User’s Guide.” General Social Survey, The Minister Responsible for Statistics Canada, Apr. 2020, sda-artsci-utoronto-ca.myaccess.library.utoronto.ca/sdaweb/dli2/gss/gss31/gss31/more_doc/GSS31_User_Guide.pdf. 
+
+\newpage
+## Appendix
+
+1. Three-stage non-response adjustment: Numbers with some auxiliary information available, numbers with supplemental information from various sources available to Statistics Canada and numbers with no auxiliary information are the three types of non-responding telephone numbers. The first adjustments were made for complete non-response, and it was done independently within each stratum. The second adjustment was made for non-response with auxiliary information, which was used to respond to the model propensity. The last adjustments were made for partial non-response. The second and third adjustments were done independently within each wave.
